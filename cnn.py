@@ -3,7 +3,7 @@
 
 # import the necessary packages
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
-from tensorflow.keras.layers import AveragePooling2D
+from tensorflow.keras.layers import AveragePooling2D, GlobalAveragePooling2D
 from tensorflow.keras.layers import Dropout
 from tensorflow.keras.layers import Flatten
 from tensorflow.keras.layers import Dense
@@ -15,6 +15,7 @@ from sklearn.metrics import classification_report
 import matplotlib.pyplot as plt
 import numpy as np
 
+# tamanho do espectrograma: 400, 348
 
 treino_gen = ImageDataGenerator(
     rotation_range=20,
@@ -24,7 +25,7 @@ treino_gen = ImageDataGenerator(
 
 train = treino_gen.flow_from_directory(
         './treino/',
-        target_size=(400, 348),
+        target_size=(224, 224),
         color_mode="rgb",
         classes=None,
         class_mode="categorical",
@@ -41,7 +42,7 @@ teste_gen = ImageDataGenerator()
 
 test = teste_gen.flow_from_directory(
         './teste/',
-        target_size=(400, 348),
+        target_size=(224, 224),
         color_mode="rgb",
         classes=None,
         class_mode="categorical",
@@ -54,22 +55,46 @@ test = teste_gen.flow_from_directory(
         follow_links=False,
     )
 
+baseModel = ResNet50(
+    weights="./resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5", 
+    include_top=False,
+    input_tensor=Input(shape=(224, 224, 3))
+    )
 
-baseModel = ResNet50(weights="./resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5", include_top=False, input_tensor=Input(shape=(400, 348, 3)))
+# tf.keras.applications.ResNet50( include_top=True, weights="imagenet", input_tensor=None, input_shape=None, pooling=None, classes=1000, **kwargs )
+
+
+# inputs = keras.Input(shape=(150, 150, 3)) x = base_model(inputs, training=False) x = keras.layers.GlobalAveragePooling2D()(x) outputs = keras.layers.Dense(1)(x)
 
 headModel = baseModel.output
-headModel = AveragePooling2D(pool_size=(7,7))(headModel)
-headModel = Flatten(name="flatten")(headModel)
-headModel = Dense(256, activation="relu")(headModel)
-headModel = Dropout(0.5)(headModel)
+# headModel = AveragePooling2D(pool_size=(7,7))(headModel)
+# headModel = Flatten(name="flatten")(headModel)
+# headModel = Dense(256, activation="relu")(headModel)
+
+headModel = GlobalAveragePooling2D()(headModel)
+
+headModel = Dropout(0.2)(headModel)
 headModel = Dense(47, activation="softmax")(headModel)
+
+# inputs = keras.Input(shape=(150, 150, 3))
+# x = base_model(inputs, training=False)
+# x = keras.layers.GlobalAveragePooling2D()(x)
+# outputs = keras.layers.Dense(1)(x)
 
 model = Model(inputs=baseModel.input, outputs=headModel)
 
 for layer in baseModel.layers:
 	layer.trainable = False
     
-model.compile(loss="categorical_crossentropy", optimizer="adam", metrics=["accuracy"])
+# optimizer, SGD, outros
+# especificar learning rate    
+# early stop
+# model.compile(loss="categorical_crossentropy", optimizer="adam", metrics=["accuracy"])
+model.compile(
+    loss="categorical_crossentropy", 
+    optimizer=Adam(learning_rate=0.001), #0.05 0.001 0.005
+    metrics=["accuracy"]
+    )
 
 
 H = model.fit_generator(
